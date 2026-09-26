@@ -282,6 +282,15 @@ exec "$TOOR" -r "$ROOTFS_DIR" -0 -w /root $BIND_OPTS --kill-on-exit \
       echo "✅ 修复完成，标记已清除，继续启动面板"
     fi
 
+    # PRoot 补丁自愈：bp.sh 升级会覆盖 browser-launcher.js，把 PROOT_ENV 补丁冲掉。
+    # 每次开服检查补丁是否还在，丢失则自动重打（--patch-only 幂等，只打补丁不跑测试）。
+    _launcher=/opt/browser-panel/server/runtime/browser-launcher.js
+    if [ -f "$_launcher" ] && ! grep -q "process.env.PROOT_ENV" "$_launcher"; then
+      echo "检测到 browser-launcher.js PRoot 补丁丢失，自动重打..."
+      bash /root/fix_browser.sh --patch-only
+      echo "✅ PRoot 补丁已恢复"
+    fi
+
     if [ ! -f /root/panel-start.sh ]; then
       echo "[ERROR] proot 内缺少 /root/panel-start.sh"
       echo "解决办法：把修订版 panel-start.sh 上传到翼龙文件管理的 MyWorlds/Ubuntu24/root/panel-start.sh"

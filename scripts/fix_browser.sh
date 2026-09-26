@@ -12,14 +12,18 @@
 #     避免杀掉正在跑任务的浏览器；确实需要干净重测时用 --force。
 #
 # 用法：
-#   bash fix_browser.sh           # 安全模式：不杀已有浏览器
-#   bash fix_browser.sh --force   # 强制模式：杀掉已有 Firefox 后完整重测
+#   bash fix_browser.sh              # 安全模式：不杀已有浏览器
+#   bash fix_browser.sh --force      # 强制模式：杀掉已有 Firefox 后完整重测
+#   bash fix_browser.sh --patch-only # 仅重打 PRoot 补丁（跳过 Firefox 测试，供开服自愈调用）
 #
 set -euo pipefail
 
 FORCE=0
+PATCH_ONLY=0
 if [[ "${1:-}" == "--force" ]]; then
   FORCE=1
+elif [[ "${1:-}" == "--patch-only" ]]; then
+  PATCH_ONLY=1
 fi
 
 FIREFOX="/opt/ruyipage-firefox/firefox"
@@ -157,8 +161,9 @@ else:
 PY
 
 # ============================================================
-# 5. 检查 ruyipage Marionette 端口
+# 5. 检查 ruyipage Marionette 端口（--patch-only 跳过）
 # ============================================================
+if [[ "$PATCH_ONLY" == "0" ]]; then
 echo
 echo "[5/7] 检查 ruyipage Marionette..."
 RUYI_PATH=""
@@ -249,6 +254,8 @@ if [[ "$SKIP_TEST" == "0" ]]; then
     exit 3
   fi
 fi
+
+fi # PATCH_ONLY 跳过 [5/7][6/7]
 
 # ============================================================
 # 7. 清理 + 总结
