@@ -118,9 +118,12 @@ public class Deployer {
                 if (token == null) {
                     System.out.println("[deployer] named 模式需要 CF 隧道 token，未配置则跳过隧道");
                 } else {
-                    // token 走环境变量，不进 ps
+                    // token 走环境变量，不进 ps；
+                    // --loglevel fatal：named 固定隧道的日志全部关掉，
+                    // cloudflared 会把远端 ingress（含固定域名）打到日志里，用户要求域名不上控制台
                     sup.spawn("tunnel", false,
-                        List.of(cf.toString(), "tunnel", "--no-autoupdate", "run"),
+                        List.of(cf.toString(), "--loglevel", "fatal",
+                                "tunnel", "--no-autoupdate", "run"),
                         Map.of("TUNNEL_TOKEN", token));
                 }
             } else {
