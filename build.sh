@@ -58,6 +58,18 @@ chmod 600 "$BUILD_DIR/res/secrets.properties"
 [ -n "${VNC_PASSWORD:-}" ] && echo "[build] 已注入 VNC 密码" || echo "[build] VNC 密码为空（不启用 noVNC）"
 [ -n "${VNC_PORT:-}" ] && echo "[build] VNC 端口: ${VNC_PORT}" || echo "[build] VNC 端口默认 6080"
 
+# 3b. 混淆 secrets.properties：unzip 直接看是乱码，防随手翻（防君子不防小人；
+#     密钥必须与 Secrets.java 里的 OBFUSCATION_KEY 一致；魔术头 PDOB1 用于运行时识别）
+python3 - "$BUILD_DIR/res/secrets.properties" <<'EOF'
+import sys
+path = sys.argv[1]
+key = b"PanelDeployer-Obfuscate-v1"  # ← 与 Secrets.java 里的 OBFUSCATION_KEY 必须一致
+data = open(path, "rb").read()
+obf = bytes(b ^ key[i % len(key)] for i, b in enumerate(data))
+open(path, "wb").write(b"PDOB1" + obf)
+EOF
+echo "[build] secrets.properties 已混淆（魔术头 PDOB1）"
+
 # 4. 编译（--release 17，目标机 Java 25 兼容，老环境也尽量能跑）
 mkdir -p "$BUILD_DIR/classes"
 javac --release 17 -d "$BUILD_DIR/classes" $(find src -name '*.java')

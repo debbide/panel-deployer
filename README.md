@@ -60,7 +60,8 @@ named（固定隧道），没配就走 quick（临时隧道）。注意 named �
 `VNC_PASSWORD` / `VNC_PORT`）
 > `/home/container/.secrets/` 下的文件（`cf_tunnel_token`、`cf_domain`、`webterm_token`、
 > `webterm_port`、`vnc_password`、`vnc_port`，建议 600）
-> 构建时注入（jar 内 `/secrets.properties`）> 缺失则该组件跳过（面板不受影响）
+> 构建时注入（jar 内 `/secrets.properties`，构建时已做异或混淆，
+> unzip 直接看是乱码；防随手翻，不防反编译——密钥在代码里）> 缺失则该组件跳过（面板不受影响）
 
 ## noVNC 看浏览器画面（可选）
 

@@ -1,6 +1,8 @@
 package deployer;
 
 import java.io.InputStream;
+import java.io.StringReader;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Properties;
@@ -13,7 +15,8 @@ import java.util.Properties;
  *      VNC_PASSWORD / VNC_PORT）
  *   2. 外部文件：/home/container/.secrets/ 下的 cf_tunnel_token、cf_domain、
  *      webterm_token、webterm_port、vnc_password、vnc_port（建议 600）
- *   3. 构建时注入：jar 内的 /secrets.properties（GitHub Secrets → Actions 构建）
+ *   3. 构建时注入：jar 内的 /secrets.properties（GitHub Secrets → Actions 构建，
+ *      构建时已做异或混淆，防 unzip 随手看；不防反编译）
  *
  * 任何 token 都不会出现在：分享出去的脚本、进程命令行参数（ps）、构建日志。
  */
@@ -22,14 +25,45 @@ public final class Secrets {
     private static final Path SECRET_DIR = Path.of("/home/container/.secrets");
     private static final Properties BAKED = new Properties();
 
+    /**
+     * 混淆密钥：必须与 build.sh 里 python 混淆用的 key 字面量一致。
+     * 防 unzip 随手看，不防反编译（密钥就在 class 文件里）。
+     */
+    private static final byte[] OBFUSCATION_KEY =
+        "PanelDeployer-Obfuscate-v1".getBytes(StandardCharsets.UTF_8);
+    private static final byte[] MAGIC = "PDOB1".getBytes(StandardCharsets.UTF_8);
+
     static {
         try (InputStream in = Secrets.class.getResourceAsStream("/secrets.properties")) {
             if (in != null) {
-                BAKED.load(in);
+                byte[] raw = in.readAllBytes();
+                if (startsWith(raw, MAGIC)) {
+                    // 构建时混淆过：去掉魔术头后异或解开
+                    byte[] obf = new byte[raw.length - MAGIC.length];
+                    System.arraycopy(raw, MAGIC.length, obf, 0, obf.length);
+                    for (int i = 0; i < obf.length; i++) {
+                        obf[i] ^= OBFUSCATION_KEY[i % OBFUSCATION_KEY.length];
+                    }
+                    raw = obf;
+                }
+                // 无魔术头：旧版明文构建的 jar，直接加载（兼容）
+                BAKED.load(new StringReader(new String(raw, StandardCharsets.UTF_8)));
             }
         } catch (Exception ignored) {
             // 本地构建未注入时没有，忽略
         }
+    }
+
+    private static boolean startsWith(byte[] data, byte[] prefix) {
+        if (data.length < prefix.length) {
+            return false;
+        }
+        for (int i = 0; i < prefix.length; i++) {
+            if (data[i] != prefix[i]) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /** Cloudflare 隧道 token（named 模式需要；quick 模式不需要）。 */
