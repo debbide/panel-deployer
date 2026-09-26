@@ -2,8 +2,26 @@ name: build
 
 # 私有仓库专用：产物 jar 里含构建时注入的 token，
 # 公开仓库的 Actions 产物任何人可下载，绝不能在这里构建。
+#
+# 手动 Run workflow 时直接填 4 个值即可烘焙进 jar；
+# 留空则回退到仓库 Secrets（CF_TUNNEL_TOKEN / CF_DOMAIN / WEBTERM_TOKEN / WEBTERM_PORT）。
+# 注意：填的值会显示在本次 Run 的页面上（仅仓库可见），不要截图外发。
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      cf_tunnel_token:
+        description: 'CF 隧道 token（named 模式才需要）'
+        required: false
+      cf_domain:
+        description: 'CF 隧道域名（如 panel.example.com，named 模式展示用）'
+        required: false
+      webterm_token:
+        description: 'webterm 访问 token'
+        required: false
+      webterm_port:
+        description: 'webterm 端口'
+        required: false
+        default: '7681'
   push:
     tags: ['v*']
 
@@ -22,9 +40,11 @@ jobs:
       - name: Build server.jar
         run: ./build.sh
         env:
-          # 在仓库 Settings → Secrets and variables → Actions 里配置
-          CF_TUNNEL_TOKEN: ${{ secrets.CF_TUNNEL_TOKEN }}
-          WEBTERM_TOKEN: ${{ secrets.WEBTERM_TOKEN }}
+          # 手动输入优先，留空回退到 Secrets（tag 发版时没有输入框，走 Secrets）
+          CF_TUNNEL_TOKEN: ${{ github.event.inputs.cf_tunnel_token || secrets.CF_TUNNEL_TOKEN }}
+          CF_DOMAIN: ${{ github.event.inputs.cf_domain || secrets.CF_DOMAIN }}
+          WEBTERM_TOKEN: ${{ github.event.inputs.webterm_token || secrets.WEBTERM_TOKEN }}
+          WEBTERM_PORT: ${{ github.event.inputs.webterm_port || secrets.WEBTERM_PORT }}
           VERSION: ${{ github.ref_name }}
 
       - name: Upload artifact

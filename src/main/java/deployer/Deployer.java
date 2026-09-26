@@ -36,6 +36,10 @@ public class Deployer {
 
     public int run() throws Exception {
         System.out.println("[deployer] panel-deployer " + BuildInfo.summary());
+        String cfDomain = Secrets.cfDomain();
+        if (cfDomain != null) {
+            System.out.println("[deployer] 隧道域名: https://" + cfDomain);
+        }
 
         // 兼容旧 jar 行为：--script= 直接跑指定脚本
         if (opts.containsKey("script")) {
@@ -76,9 +80,10 @@ public class Deployer {
                 wantWebterm = false;
             } else {
                 Path wt = Binaries.webterm();
+                int port = Secrets.webtermPort();
                 sup.spawn("webterm", false,
                     List.of(wt.toString()),
-                    Map.of("WEBTERM_PORT", "7681",
+                    Map.of("WEBTERM_PORT", String.valueOf(port),
                            "WEBTERM_ACCESS_TOKEN", token));
             }
         }
@@ -106,7 +111,7 @@ public class Deployer {
                 if (wantWebterm) {
                     sup.spawn("tunnel-webterm", false,
                         List.of(cf.toString(), "tunnel", "--no-autoupdate",
-                                "--url", "http://127.0.0.1:7681"),
+                                "--url", "http://127.0.0.1:" + Secrets.webtermPort()),
                         Map.of());
                 }
             }

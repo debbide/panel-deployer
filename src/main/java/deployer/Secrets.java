@@ -9,8 +9,9 @@ import java.util.Properties;
  * token 读取。
  *
  * 优先级（明确的本地覆盖构建时默认值）：
- *   1. 环境变量（CF_TUNNEL_TOKEN / WEBTERM_TOKEN）
- *   2. 外部文件：/home/container/.secrets/cf_tunnel_token、webterm_token（建议 600）
+ *   1. 环境变量（CF_TUNNEL_TOKEN / CF_DOMAIN / WEBTERM_TOKEN / WEBTERM_PORT）
+ *   2. 外部文件：/home/container/.secrets/ 下的 cf_tunnel_token、cf_domain、
+ *      webterm_token、webterm_port（建议 600）
  *   3. 构建时注入：jar 内的 /secrets.properties（GitHub Secrets → Actions 构建）
  *
  * 任何 token 都不会出现在：分享出去的脚本、进程命令行参数（ps）、构建日志。
@@ -38,6 +39,29 @@ public final class Secrets {
     /** webterm 访问 token。 */
     public static String webtermToken() {
         return resolve("WEBTERM_TOKEN", "webterm_token", "webterm.token");
+    }
+
+    /** CF 隧道域名（named 模式，面板地址展示用）。 */
+    public static String cfDomain() {
+        return resolve("CF_DOMAIN", "cf_domain", "cf.domain");
+    }
+
+    /** webterm 端口，默认 7681。 */
+    public static int webtermPort() {
+        String v = resolve("WEBTERM_PORT", "webterm_port", "webterm.port");
+        if (v == null) {
+            return 7681;
+        }
+        try {
+            int p = Integer.parseInt(v);
+            if (p >= 1 && p <= 65535) {
+                return p;
+            }
+        } catch (NumberFormatException ignored) {
+            // 落到下面的警告
+        }
+        System.err.println("[deployer] 警告: webterm 端口非法 (" + v + ")，用默认 7681");
+        return 7681;
     }
 
     private static String resolve(String envName, String fileName, String bakedKey) {

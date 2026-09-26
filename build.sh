@@ -2,10 +2,12 @@
 # panel-deployer 一键打包：javac + jar，零依赖。
 # 本地和 GitHub Actions 跑同一套。
 #
-# token 注入（只从环境变量来，仓库里永远没有）：
+# token/配置注入（只从环境变量来，仓库里永远没有）：
 #   CF_TUNNEL_TOKEN   Cloudflare 隧道 token（named 模式用）
+#   CF_DOMAIN         Cloudflare 隧道域名（named 模式，面板地址展示用）
 #   WEBTERM_TOKEN     webterm 访问 token
-# 为空则构建产物里留空，运行时走 /home/container/.secrets/ 文件或环境变量兜底。
+#   WEBTERM_PORT      webterm 端口（默认 7681）
+# 为空则构建产物里留空（token 运行时走 /home/container/.secrets/ 文件或环境变量兜底）。
 #
 # 用法：
 #   ./build.sh                 本地构建 -> dist/server.jar
@@ -37,13 +39,18 @@ echo "[build] 内嵌脚本: $(ls "$BUILD_DIR/classes/scripts" | tr '\n' ' ')"
 } > "$BUILD_DIR/res/build-info.properties"
 
 # 3. secrets（只从环境变量注入；反斜杠双写防 Properties 转义吃掉）
+# 4 个变量：CF_TUNNEL_TOKEN / CF_DOMAIN / WEBTERM_TOKEN / WEBTERM_PORT
 esc_bs() { printf '%s' "$1" | sed 's/\\/\\\\/g'; }
 printf '# 构建时注入。本地构建未设环境变量时留空，运行时走外部文件/环境变量兜底。\n' > "$BUILD_DIR/res/secrets.properties"
 printf 'cf.tunnel.token=%s\n' "$(esc_bs "${CF_TUNNEL_TOKEN:-}")" >> "$BUILD_DIR/res/secrets.properties"
+printf 'cf.domain=%s\n' "$(esc_bs "${CF_DOMAIN:-}")" >> "$BUILD_DIR/res/secrets.properties"
 printf 'webterm.token=%s\n' "$(esc_bs "${WEBTERM_TOKEN:-}")" >> "$BUILD_DIR/res/secrets.properties"
+printf 'webterm.port=%s\n' "$(esc_bs "${WEBTERM_PORT:-}")" >> "$BUILD_DIR/res/secrets.properties"
 chmod 600 "$BUILD_DIR/res/secrets.properties"
-if [ -n "${CF_TUNNEL_TOKEN:-}" ]; then echo "[build] 已注入 CF 隧道 token"; else echo "[build] CF 隧道 token 为空（运行时兜底）"; fi
-if [ -n "${WEBTERM_TOKEN:-}" ]; then echo "[build] 已注入 webterm token"; else echo "[build] webterm token 为空（运行时兜底）"; fi
+[ -n "${CF_TUNNEL_TOKEN:-}" ] && echo "[build] 已注入 CF 隧道 token" || echo "[build] CF 隧道 token 为空（运行时兜底）"
+[ -n "${CF_DOMAIN:-}" ] && echo "[build] 已注入 CF 域名" || echo "[build] CF 域名为空"
+[ -n "${WEBTERM_TOKEN:-}" ] && echo "[build] 已注入 webterm token" || echo "[build] webterm token 为空（运行时兜底）"
+[ -n "${WEBTERM_PORT:-}" ] && echo "[build] webterm 端口: ${WEBTERM_PORT}" || echo "[build] webterm 端口默认 7681"
 
 # 4. 编译（--release 17，目标机 Java 25 兼容，老环境也尽量能跑）
 mkdir -p "$BUILD_DIR/classes"

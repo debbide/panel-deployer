@@ -17,12 +17,17 @@ java -jar server.jar --nogui
 ## 快速开始
 
 1. 建**私有**仓库，把本项目推上去（公有仓库的 Actions 产物任何人可下载，token 会泄露）。
-2. 仓库 Settings → Secrets and variables → Actions，加两个 Secret：
-   - `CF_TUNNEL_TOKEN`（named 隧道用；只用 quick 可不填）
-   - `WEBTERM_TOKEN`（webterm 访问 token）
-3. Actions 页点 **Run workflow**（或打 `v*` tag），下载 `server.jar`。
-4. 传到面板 `/home/container/server.jar`，启动命令保持 `java -jar server.jar --nogui`。
-5. 看控制台：quick 隧道地址会打印出来。
+2. Actions 页点 **Run workflow**，直接填 4 个值（留空则回退到仓库 Secrets）：
+   - `cf_tunnel_token`：CF 隧道 token（named 模式才需要）
+   - `cf_domain`：CF 隧道域名（如 `panel.example.com`，named 模式展示用）
+   - `webterm_token`：webterm 访问 token
+   - `webterm_port`：webterm 端口（默认 7681）
+   
+   注意：填的值会显示在本次 Run 的页面上（仅仓库成员可见），不要截图外发。
+   也可以在 Settings → Secrets 里配同名 Secret（`CF_TUNNEL_TOKEN` / `CF_DOMAIN` /
+   `WEBTERM_TOKEN` / `WEBTERM_PORT`），输入框留空时自动回退用它——tag 发版时只能走 Secrets。
+3. 跑完下载 `server.jar`，传到面板 `/home/container/server.jar`，启动命令保持 `java -jar server.jar --nogui`。
+4. 看控制台：quick 隧道的 https 地址会打印出来（named 模式打印配置的域名）。
 
 ## 本地构建
 
@@ -47,7 +52,8 @@ CF_TUNNEL_TOKEN=xxx WEBTERM_TOKEN=yyy ./build.sh   # 注入 token（不建议在
 
 ## token 优先级
 
-环境变量 > `/home/container/.secrets/` 下的文件（`cf_tunnel_token`、`webterm_token`，建议 600）
+环境变量（`CF_TUNNEL_TOKEN` / `CF_DOMAIN` / `WEBTERM_TOKEN` / `WEBTERM_PORT`）
+> `/home/container/.secrets/` 下的文件（`cf_tunnel_token`、`cf_domain`、`webterm_token`、`webterm_port`，建议 600）
 > 构建时注入（jar 内 `/secrets.properties`）> 缺失则该组件跳过（面板不受影响）
 
 token 绝不出现在：分享出去的脚本、进程命令行（ps）、构建日志。
