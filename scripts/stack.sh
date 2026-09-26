@@ -467,7 +467,8 @@ python3 -m pip install \
     TgCrypto \
     SpeechRecognition \
     pydub \
-    numpy
+    numpy \
+    ruyipage==1.2.66
 
 
 echo "[+] Python packages installed."

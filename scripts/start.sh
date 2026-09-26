@@ -225,6 +225,18 @@ exec "$TOOR" -r "$ROOTFS_DIR" -0 -w /root $BIND_OPTS --kill-on-exit \
       echo "✅ Firefox 已安装到 /opt/ruyipage-firefox"
     fi
 
+    # RuyiPage Python 驱动：面板经 manual-browser-session-ruyi.py 调
+    # from ruyipage import launch，缺了就报 No module named ruyipage。
+    # 版本与 Firefox 二进制对齐。幂等：已安装则跳过。
+    if ! python3 -c "import ruyipage" 2>/dev/null; then
+      echo "安装 ruyipage Python 包（1.2.66）..."
+      python3 -m pip install --break-system-packages \
+        --disable-pip-version-check --no-cache-dir "ruyipage==1.2.66"
+      python3 -c "import ruyipage" 2>/dev/null \
+        && echo "✅ ruyipage Python 包已就绪" \
+        || { echo "[ERROR] ruyipage 安装失败"; exit 1; }
+    fi
+
     # 安装模式：/opt/browser-panel 不存在 = 全新环境（或被清空）。
     # 自动按顺序跑安装链，装完直接继续往下启动面板，一次开服搞定。
     # 四个安装脚本要提前放到 proot 的 /root/ 下
