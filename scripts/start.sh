@@ -208,6 +208,8 @@ exec "$TOOR" -r "$ROOTFS_DIR" -0 -w /root $BIND_OPTS --kill-on-exit \
       if [ -x "$tmpd/canary.sh" ]; then echo "[diag] canary -x 检查: 通过"; else echo "[diag] canary -x 检查: 失败"; fi
       if "$tmpd/canary.sh"; then echo "[diag] canary 实际执行: 成功"; else echo "[diag] canary 实际执行: 失败"; fi
       if [ -x "$tmpd/firefox/firefox" ]; then echo "[diag] firefox -x 检查: 通过"; else echo "[diag] firefox -x 检查: 失败"; fi
+      echo "[diag] 尝试直接执行:"
+      "$tmpd/firefox/firefox" --version 2>&1 | head -2 || echo "[diag] 直接执行失败，退出码=$?"
       # ---- 诊断探针结束 ----
       # 注：tmpd 在 /tmp 下（可能 noexec），这里只检查文件存在性，不检查可执行位；
       # 可执行位在搬到 /opt 后再确认。
