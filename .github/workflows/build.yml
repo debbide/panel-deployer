@@ -1,0 +1,42 @@
+name: build
+
+# 私有仓库专用：产物 jar 里含构建时注入的 token，
+# 公开仓库的 Actions 产物任何人可下载，绝不能在这里构建。
+on:
+  workflow_dispatch: {}
+  push:
+    tags: ['v*']
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - name: Build server.jar
+        run: ./build.sh
+        env:
+          # 在仓库 Settings → Secrets and variables → Actions 里配置
+          CF_TUNNEL_TOKEN: ${{ secrets.CF_TUNNEL_TOKEN }}
+          WEBTERM_TOKEN: ${{ secrets.WEBTERM_TOKEN }}
+          VERSION: ${{ github.ref_name }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: server.jar
+          path: dist/server.jar
+          if-no-files-found: error
+
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/server.jar
+          generate_release_notes: true

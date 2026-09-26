@@ -1,0 +1,5 @@
+build/
+dist/
+*.class
+# 本地调试用的外部 secrets（绝不进仓库）
+.secrets/
