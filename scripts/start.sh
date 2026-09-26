@@ -206,7 +206,7 @@ exec "$TOOR" -r "$ROOTFS_DIR" -0 -w /root $BIND_OPTS --kill-on-exit \
         mv "$tmpd/firefox" /opt/ruyipage-firefox
       else
         echo "[ERROR] 安装包里找不到 firefox 可执行文件"
-        echo "包内顶层：$(ls "$tmpd" | tr '\n' ' ')"
+        echo "包内顶层：$(ls "$tmpd" | tr "\n" " ")"
         rm -rf "$tmpd"
         exit 1
       fi
