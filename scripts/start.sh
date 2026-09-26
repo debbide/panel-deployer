@@ -108,43 +108,27 @@ fi
 
 # ---------------- Firefox 自动供给（宿主机侧，有 curl） ----------------
 # RuyiPage 任务需要专用 Firefox 内核（proot 内 /opt/ruyipage-firefox/firefox）。
-# 缺失时自动处理，优先级：
-#   1. 用户手工上传的包（MyWorlds/Ubuntu24/root/ruyipage-firefox.tar.gz/.tgz/.tar.xz），可覆盖版本
-#   2. 从上游 release 自动下载（版本固定，保证可复现）
-# rootfs 持久化，正常情况下只做一次；每次开服幂等检查。
+# 宿主机侧只负责下载（宿主机不一定有 xz，解压在 proot 内做）：
+#   1. 用户手工上传的包优先（MyWorlds/Ubuntu24/root/ruyipage-firefox.tar.gz/.tgz/.tar.xz）
+#   2. 否则从上游 release 自动下载到 MyWorlds/Ubuntu24/root/.firefox.tar.xz（版本固定）
+# rootfs 持久化，下载只做一次；每次开服幂等检查。
 provision_firefox() {
   local ff="$ROOTFS_DIR/opt/ruyipage-firefox/firefox"
   if [ -x "$ff" ]; then return 0; fi
-  echo "[firefox] 未检测到 /opt/ruyipage-firefox，开始供给..."
-  local tmpd="$MW/.firefox-install-$$"
-  rm -rf "$tmpd"; mkdir -p "$tmpd"
-  local tb=""
   for c in "$ROOTFS_DIR/root/ruyipage-firefox.tar.gz" \
            "$ROOTFS_DIR/root/ruyipage-firefox.tgz" \
            "$ROOTFS_DIR/root/ruyipage-firefox.tar.xz"; do
-    if [ -f "$c" ]; then tb="$c"; echo "[firefox] 使用手工上传的安装包"; break; fi
+    if [ -f "$c" ]; then echo "[firefox] 发现手工上传的安装包，proot 内解压"; return 0; fi
   done
-  if [ -z "$tb" ]; then
-    tb="$tmpd/firefox.tar.xz"
-    echo "[firefox] 自动下载 RuyiPage 专用 Firefox..."
-    if ! curl -L --retry 3 -o "$tb" "$FIREFOX_URL"; then
-      echo "[firefox] ERROR: 下载失败，请检查网络后重启"
-      rm -rf "$tmpd"; return 1
-    fi
+  local tb="$ROOTFS_DIR/root/.firefox.tar.xz"
+  if [ -f "$tb" ]; then echo "[firefox] 安装包已在本地，proot 内解压"; return 0; fi
+  echo "[firefox] 未检测到 /opt/ruyipage-firefox，自动下载 RuyiPage 专用 Firefox..."
+  if ! curl -L --retry 3 -o "$tb" "$FIREFOX_URL"; then
+    echo "[firefox] ERROR: 下载失败，请检查网络后重启"
+    rm -f "$tb"
+    return 1
   fi
-  tar -xf "$tb" -C "$tmpd"
-  rm -rf "$ROOTFS_DIR/opt/ruyipage-firefox"
-  if [ -x "$tmpd/ruyipage-firefox/firefox" ]; then
-    mv "$tmpd/ruyipage-firefox" "$ROOTFS_DIR/opt/ruyipage-firefox"
-  elif [ -x "$tmpd/firefox/firefox" ]; then
-    mv "$tmpd/firefox" "$ROOTFS_DIR/opt/ruyipage-firefox"
-  else
-    echo "[firefox] ERROR: 安装包里找不到 firefox 可执行文件"
-    echo "[firefox] 包内顶层：$(ls "$tmpd" | tr '\n' ' ')"
-    rm -rf "$tmpd"; return 1
-  fi
-  rm -rf "$tmpd"
-  echo "[firefox] ✅ 已安装到 /opt/ruyipage-firefox"
+  echo "[firefox] 下载完成，proot 内解压"
 }
 provision_firefox
 
@@ -195,10 +179,39 @@ exec "$TOOR" -r "$ROOTFS_DIR" -0 -w /root $BIND_OPTS --kill-on-exit \
   /bin/bash -c '
     set -e
 
-    # Firefox 由宿主机侧 provision_firefox() 提前供给好，这里只做存在性断言。
+    # Firefox 供给：宿主机侧已把安装包放到 /root/（手工包或自动下载的 .firefox.tar.xz），
+    # 这里解压到 /opt/。proot 内保证有 xz（缺失则 apt 装）。
     if [ ! -x /opt/ruyipage-firefox/firefox ]; then
-      echo "[ERROR] 找不到 /opt/ruyipage-firefox/firefox（宿主机侧供给失败，检查开服日志）"
-      exit 1
+      tb=""
+      for c in /root/ruyipage-firefox.tar.gz /root/ruyipage-firefox.tgz \
+               /root/ruyipage-firefox.tar.xz /root/.firefox.tar.xz; do
+        if [ -f "$c" ]; then tb="$c"; break; fi
+      done
+      if [ -z "$tb" ]; then
+        echo "[ERROR] 找不到 Firefox 安装包（宿主机侧下载失败，检查开服日志）"
+        exit 1
+      fi
+      echo "解压 Firefox 安装包：$tb ..."
+      if ! command -v xz >/dev/null 2>&1; then
+        echo "安装 xz-utils..."
+        export DEBIAN_FRONTEND=noninteractive
+        apt-get update && apt-get install -y xz-utils
+      fi
+      tmpd="$(mktemp -d)"
+      tar -xf "$tb" -C "$tmpd"
+      rm -rf /opt/ruyipage-firefox
+      if [ -x "$tmpd/ruyipage-firefox/firefox" ]; then
+        mv "$tmpd/ruyipage-firefox" /opt/ruyipage-firefox
+      elif [ -x "$tmpd/firefox/firefox" ]; then
+        mv "$tmpd/firefox" /opt/ruyipage-firefox
+      else
+        echo "[ERROR] 安装包里找不到 firefox 可执行文件"
+        echo "包内顶层：$(ls "$tmpd" | tr '\n' ' ')"
+        rm -rf "$tmpd"
+        exit 1
+      fi
+      rm -rf "$tmpd"
+      echo "✅ Firefox 已安装到 /opt/ruyipage-firefox"
     fi
 
     # 安装模式：/opt/browser-panel 不存在 = 全新环境（或被清空）。
