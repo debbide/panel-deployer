@@ -50,7 +50,9 @@ CF_TUNNEL_TOKEN=xxx WEBTERM_TOKEN=yyy ./build.sh   # 注入 token（不建议在
 | `--version` | 打印构建信息 |
 | `--no-tunnel` / `--no-webterm` | 跳过对应组件 |
 
-环境变量：`TUNNEL_MODE=quick|named`（默认 quick）。
+环境变量：`TUNNEL_MODE=quick|named`。不设置时自动判断：配了 CF 隧道 token 就走
+named（固定隧道），没配就走 quick（临时隧道）。注意 named 模式下各服务的
+路由（哪个域名→127.0.0.1:哪个端口）在 Cloudflare 后台的隧道配置里做。
 
 ## token 优先级
 

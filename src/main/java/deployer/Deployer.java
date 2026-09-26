@@ -19,9 +19,10 @@ import java.util.concurrent.LinkedBlockingQueue;
  *       VNC 密码/端口经环境变量透传进 proot）
  *   3. 起 webterm（ssh 终端）：127.0.0.1:webterm 端口，token 走环境变量（不进 ps、不进日志）
  *   4. 起 VNC（可选）：proot 内 x11vnc + noVNC，有 VNC 密码才启用
- *   5. 起隧道（TUNNEL_MODE）：
- *      - quick（默认）：quick 隧道 → 3210（面板）/ webterm 端口 / VNC 端口，各一个随机 https 地址
- *      - named：一条隧道，token 走 TUNNEL_TOKEN 环境变量（ps 不可见）
+ *   5. 起隧道：TUNNEL_MODE 显式优先；未设置时有 CF token 自动 named（固定隧道），
+ *      否则 quick（临时隧道，每条服务一个随机 https 地址）；
+ *      named 下 token 走 TUNNEL_TOKEN 环境变量（ps 不可见），
+ *      路由（哪个域名→哪个端口）由 Cloudflare 后台的隧道配置决定。
  *
  * 监督策略（v1）：
  *   - panel 主链退出 → 杀掉其余子进程，透传退出码，整体结束
@@ -34,6 +35,17 @@ public class Deployer {
 
     public Deployer(Map<String, String> opts) {
         this.opts = opts;
+    }
+
+    /** 隧道模式：显式的 TUNNEL_MODE 环境变量优先；
+     *  未设置时，有 CF 隧道 token 就自动用 named（固定隧道），否则 quick（临时隧道），
+     *  免得配了 token 还要再手动设环境变量。 */
+    static String tunnelMode() {
+        String mode = System.getenv("TUNNEL_MODE");
+        if (mode == null || mode.isBlank()) {
+            mode = Secrets.cfTunnelToken() != null ? "named" : "quick";
+        }
+        return mode.strip().toLowerCase();
     }
 
     public int run() throws Exception {
@@ -97,9 +109,11 @@ public class Deployer {
 
         // 4. 隧道
         if (wantTunnel) {
-            String mode = System.getenv().getOrDefault("TUNNEL_MODE", "quick").strip();
+            String mode = tunnelMode();
+            System.out.println("[deployer] 隧道模式: " + mode
+                + ("named".equals(mode) ? "（固定隧道）" : "（临时隧道）"));
             Path cf = Binaries.cloudflared();
-            if ("named".equalsIgnoreCase(mode)) {
+            if ("named".equals(mode)) {
                 String token = Secrets.cfTunnelToken();
                 if (token == null) {
                     System.out.println("[deployer] named 模式需要 CF 隧道 token，未配置则跳过隧道");
