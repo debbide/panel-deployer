@@ -114,7 +114,7 @@ fi
 # rootfs 持久化，下载只做一次；每次开服幂等检查。
 provision_firefox() {
   local ff="$ROOTFS_DIR/opt/ruyipage-firefox/firefox"
-  if [ -x "$ff" ]; then return 0; fi
+  if [ -f "$ff" ]; then return 0; fi
   for c in "$ROOTFS_DIR/root/ruyipage-firefox.tar.gz" \
            "$ROOTFS_DIR/root/ruyipage-firefox.tgz" \
            "$ROOTFS_DIR/root/ruyipage-firefox.tar.xz"; do
@@ -181,7 +181,9 @@ exec "$TOOR" -r "$ROOTFS_DIR" -0 -w /root $BIND_OPTS --kill-on-exit \
 
     # Firefox 供给：宿主机侧已把安装包放到 /root/（手工包或自动下载的 .firefox.tar.xz），
     # 这里解压到 /opt/。proot 内保证有 xz（缺失则 apt 装）。
-    if [ ! -x /opt/ruyipage-firefox/firefox ]; then
+    # 注意：proot -0 下 test -x 会撒谎（faccessat 转发出 bug，对 755 文件也报不可执行，
+    # 但实际执行完全正常），所以这里一律用 -f 判存在，不用 -x。
+    if [ ! -f /opt/ruyipage-firefox/firefox ]; then
       tb=""
       for c in /root/ruyipage-firefox.tar.gz /root/ruyipage-firefox.tgz \
                /root/ruyipage-firefox.tar.xz /root/.firefox.tar.xz; do
@@ -199,20 +201,7 @@ exec "$TOOR" -r "$ROOTFS_DIR" -0 -w /root $BIND_OPTS --kill-on-exit \
       fi
       tmpd="$(mktemp -d)"
       tar -xf "$tb" -C "$tmpd"
-      # ---- 诊断探针（查 proot 里 -x 失败根因，定位后删除）----
-      echo "[diag] 身份: $(id)"
-      stat -c "[diag] firefox 文件: 权限=%a 属主=%u:%g 大小=%s" "$tmpd/firefox/firefox" 2>&1 || echo "[diag] firefox 文件不存在"
-      printf "#!/bin/sh\nexit 0\n" > "$tmpd/canary.sh"
-      chmod +x "$tmpd/canary.sh"
-      stat -c "[diag] canary 脚本: 权限=%a" "$tmpd/canary.sh"
-      if [ -x "$tmpd/canary.sh" ]; then echo "[diag] canary -x 检查: 通过"; else echo "[diag] canary -x 检查: 失败"; fi
-      if "$tmpd/canary.sh"; then echo "[diag] canary 实际执行: 成功"; else echo "[diag] canary 实际执行: 失败"; fi
-      if [ -x "$tmpd/firefox/firefox" ]; then echo "[diag] firefox -x 检查: 通过"; else echo "[diag] firefox -x 检查: 失败"; fi
-      echo "[diag] 尝试直接执行:"
-      "$tmpd/firefox/firefox" --version 2>&1 | head -2 || echo "[diag] 直接执行失败，退出码=$?"
-      # ---- 诊断探针结束 ----
-      # 注：tmpd 在 /tmp 下（可能 noexec），这里只检查文件存在性，不检查可执行位；
-      # 可执行位在搬到 /opt 后再确认。
+      # 注：只检查文件存在性（-f），不用 -x（见上方 proot -0 注释）。
       srcdir=""
       if [ -f "$tmpd/ruyipage-firefox/firefox" ]; then
         srcdir="$tmpd/ruyipage-firefox"
@@ -229,8 +218,8 @@ exec "$TOOR" -r "$ROOTFS_DIR" -0 -w /root $BIND_OPTS --kill-on-exit \
       mv "$srcdir" /opt/ruyipage-firefox
       rm -rf "$tmpd"
       chmod +x /opt/ruyipage-firefox/firefox
-      if [ ! -x /opt/ruyipage-firefox/firefox ]; then
-        echo "[ERROR] /opt/ruyipage-firefox/firefox 无法执行（/opt 可能被挂载为 noexec）"
+      if [ ! -f /opt/ruyipage-firefox/firefox ]; then
+        echo "[ERROR] /opt/ruyipage-firefox/firefox 安装失败"
         exit 1
       fi
       echo "✅ Firefox 已安装到 /opt/ruyipage-firefox"
