@@ -32,6 +32,8 @@ TOOR="$ROOTFS_DIR/usr/local/bin/toor"     # PRoot 二进制
 # ARM 机器需要换对应架构的 proot 二进制）
 ROOTFS_URL="https://cdimage.ubuntu.com/ubuntu-base/releases/24.04.4/release/ubuntu-base-24.04.4-base-amd64.tar.gz"
 PROOT_URL="https://raw.githubusercontent.com/kof96zip/MyWorlds/main/proot-x86_64"
+# RuyiPage 专用 Firefox（版本固定，保证可复现；与 browser-panel README 一致）
+FIREFOX_URL="https://github.com/LoseNine/ruyipage/releases/download/v1.2.66/firefox-155.0.en-US.linux-x86_64.tar.xz"
 # --------------------------------------------------
 
 # PRoot 必须的环境变量：
@@ -104,6 +106,48 @@ if [ -f /etc/resolv.conf ]; then
   cp -L /etc/resolv.conf "$ROOTFS_DIR/etc/resolv.conf" 2>/dev/null || true
 fi
 
+# ---------------- Firefox 自动供给（宿主机侧，有 curl） ----------------
+# RuyiPage 任务需要专用 Firefox 内核（proot 内 /opt/ruyipage-firefox/firefox）。
+# 缺失时自动处理，优先级：
+#   1. 用户手工上传的包（MyWorlds/Ubuntu24/root/ruyipage-firefox.tar.gz/.tgz/.tar.xz），可覆盖版本
+#   2. 从上游 release 自动下载（版本固定，保证可复现）
+# rootfs 持久化，正常情况下只做一次；每次开服幂等检查。
+provision_firefox() {
+  local ff="$ROOTFS_DIR/opt/ruyipage-firefox/firefox"
+  if [ -x "$ff" ]; then return 0; fi
+  echo "[firefox] 未检测到 /opt/ruyipage-firefox，开始供给..."
+  local tmpd="$MW/.firefox-install-$$"
+  rm -rf "$tmpd"; mkdir -p "$tmpd"
+  local tb=""
+  for c in "$ROOTFS_DIR/root/ruyipage-firefox.tar.gz" \
+           "$ROOTFS_DIR/root/ruyipage-firefox.tgz" \
+           "$ROOTFS_DIR/root/ruyipage-firefox.tar.xz"; do
+    if [ -f "$c" ]; then tb="$c"; echo "[firefox] 使用手工上传的安装包"; break; fi
+  done
+  if [ -z "$tb" ]; then
+    tb="$tmpd/firefox.tar.xz"
+    echo "[firefox] 自动下载 RuyiPage 专用 Firefox..."
+    if ! curl -L --retry 3 -o "$tb" "$FIREFOX_URL"; then
+      echo "[firefox] ERROR: 下载失败，请检查网络后重启"
+      rm -rf "$tmpd"; return 1
+    fi
+  fi
+  tar -xf "$tb" -C "$tmpd"
+  rm -rf "$ROOTFS_DIR/opt/ruyipage-firefox"
+  if [ -x "$tmpd/ruyipage-firefox/firefox" ]; then
+    mv "$tmpd/ruyipage-firefox" "$ROOTFS_DIR/opt/ruyipage-firefox"
+  elif [ -x "$tmpd/firefox/firefox" ]; then
+    mv "$tmpd/firefox" "$ROOTFS_DIR/opt/ruyipage-firefox"
+  else
+    echo "[firefox] ERROR: 安装包里找不到 firefox 可执行文件"
+    echo "[firefox] 包内顶层：$(ls "$tmpd" | tr '\n' ' ')"
+    rm -rf "$tmpd"; return 1
+  fi
+  rm -rf "$tmpd"
+  echo "[firefox] ✅ 已安装到 /opt/ruyipage-firefox"
+}
+provision_firefox
+
 # ---------------- 脚本同步：jar 内嵌脚本是唯一可信来源 ----------------
 # 每次开服把 jar 释放出来的脚本同步进 proot 的 /root/，保证里面跑的
 # 永远是 jar 里那一套——不用再手动往文件管理里传脚本，也不会出现
@@ -151,33 +195,10 @@ exec "$TOOR" -r "$ROOTFS_DIR" -0 -w /root $BIND_OPTS --kill-on-exit \
   /bin/bash -c '
     set -e
 
-    # Firefox 投放：文件管理器一次只能传单个文件，而 ruyipage-firefox
-    # 是几千个文件的目录，所以打成 tar.gz 传到 MyWorlds/Ubuntu24/root/，
-    # 这里自动解到 /opt/。包内应为 ruyipage-firefox/ 目录（或顶层直接是 firefox）。
+    # Firefox 由宿主机侧 provision_firefox() 提前供给好，这里只做存在性断言。
     if [ ! -x /opt/ruyipage-firefox/firefox ]; then
-      for tb in /root/ruyipage-firefox.tar.gz /root/ruyipage-firefox.tgz /root/ruyipage-firefox.tar.xz; do
-        if [ -f "$tb" ]; then
-          echo "发现 Firefox 安装包：$tb，正在解压..."
-          tmpd="$(mktemp -d)"
-          tar -xf "$tb" -C "$tmpd"
-          if [ -x "$tmpd/ruyipage-firefox/firefox" ]; then
-            rm -rf /opt/ruyipage-firefox
-            mv "$tmpd/ruyipage-firefox" /opt/
-            echo "✅ Firefox 已解压到 /opt/ruyipage-firefox"
-          elif [ -x "$tmpd/firefox" ]; then
-            mkdir -p /opt/ruyipage-firefox
-            mv "$tmpd"/* /opt/ruyipage-firefox/
-            echo "✅ Firefox 已解压到 /opt/ruyipage-firefox"
-          else
-            echo "[ERROR] 安装包里找不到 firefox（期望 ruyipage-firefox/firefox）"
-            echo "包内顶层：$(ls "$tmpd" | tr "\n" " ")"
-            rm -rf "$tmpd"
-            exit 1
-          fi
-          rm -rf "$tmpd"
-          break
-        fi
-      done
+      echo "[ERROR] 找不到 /opt/ruyipage-firefox/firefox（宿主机侧供给失败，检查开服日志）"
+      exit 1
     fi
 
     # 安装模式：/opt/browser-panel 不存在 = 全新环境（或被清空）。
