@@ -58,7 +58,23 @@ chmod 600 "$PASSWD_FILE"
 x11vnc -display :1 -forever -shared \
   -rfbport "$RFB_PORT" -rfbauth "$PASSWD_FILE" \
   -bg -o "$LOGDIR/x11vnc.log"
-echo "[VNC] x11vnc 已启动（:1 → 127.0.0.1:$RFB_PORT）"
+# -bg 是 fire-and-forget：父进程退出码恒为 0，必须真探一次 5901，
+# 否则"已启动"可能是谎报（2026-09-26 实锤：x11vnc 死了但脚本照报成功）。
+X11VNC_OK=0
+for i in 1 2 3; do
+  sleep 2
+  if (echo > /dev/tcp/127.0.0.1/$RFB_PORT) 2>/dev/null; then
+    X11VNC_OK=1
+    break
+  fi
+done
+if [ "$X11VNC_OK" = 1 ]; then
+  echo "[VNC] x11vnc 已启动（:1 → 127.0.0.1:$RFB_PORT）"
+else
+  echo "[VNC] ERROR: x11vnc 未在 $RFB_PORT 监听，noVNC 点连接会失败。x11vnc.log 尾部："
+  tail -n 20 "$LOGDIR/x11vnc.log" 2>/dev/null || echo "[VNC] （无 x11vnc.log）"
+  echo "[VNC] 面板不受影响"
+fi
 
 # ---- 5. websockify：noVNC 网页服务 ----
 nohup websockify --web /usr/share/novnc/ "$VNC_PORT" "localhost:$RFB_PORT" \
