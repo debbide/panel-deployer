@@ -77,8 +77,11 @@ else
 fi
 
 # ---- 5. websockify：noVNC 网页服务 ----
-nohup websockify --web /usr/share/novnc/ "$VNC_PORT" "localhost:$RFB_PORT" \
+nohup websockify --web /usr/share/novnc/ "$VNC_PORT" "127.0.0.1:$RFB_PORT" \
   >>"$LOGDIR/websockify.log" 2>&1 &
+# 注意：下游必须写 127.0.0.1 字面量，不能写 localhost——proot 内 /etc/hosts
+# 缺失时 Python 解析 localhost 会报 [Errno -2] Name or service not known
+# （2026-09-26 实锤：x11vnc 明明在监听，websockify 却连不上）。
 echo $! > "$APP/pids/websockify.pid"
 sleep 1
 if kill -0 "$(cat "$APP/pids/websockify.pid")" 2>/dev/null; then
