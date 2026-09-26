@@ -199,6 +199,16 @@ exec "$TOOR" -r "$ROOTFS_DIR" -0 -w /root $BIND_OPTS --kill-on-exit \
       fi
       tmpd="$(mktemp -d)"
       tar -xf "$tb" -C "$tmpd"
+      # ---- 诊断探针（查 proot 里 -x 失败根因，定位后删除）----
+      echo "[diag] 身份: $(id)"
+      stat -c "[diag] firefox 文件: 权限=%a 属主=%u:%g 大小=%s" "$tmpd/firefox/firefox" 2>&1 || echo "[diag] firefox 文件不存在"
+      printf "#!/bin/sh\nexit 0\n" > "$tmpd/canary.sh"
+      chmod +x "$tmpd/canary.sh"
+      stat -c "[diag] canary 脚本: 权限=%a" "$tmpd/canary.sh"
+      if [ -x "$tmpd/canary.sh" ]; then echo "[diag] canary -x 检查: 通过"; else echo "[diag] canary -x 检查: 失败"; fi
+      if "$tmpd/canary.sh"; then echo "[diag] canary 实际执行: 成功"; else echo "[diag] canary 实际执行: 失败"; fi
+      if [ -x "$tmpd/firefox/firefox" ]; then echo "[diag] firefox -x 检查: 通过"; else echo "[diag] firefox -x 检查: 失败"; fi
+      # ---- 诊断探针结束 ----
       # 注：tmpd 在 /tmp 下（可能 noexec），这里只检查文件存在性，不检查可执行位；
       # 可执行位在搬到 /opt 后再确认。
       srcdir=""
