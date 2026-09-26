@@ -36,10 +36,6 @@ public class Deployer {
 
     public int run() throws Exception {
         System.out.println("[deployer] panel-deployer " + BuildInfo.summary());
-        String cfDomain = Secrets.cfDomain();
-        if (cfDomain != null) {
-            System.out.println("[deployer] 隧道域名: https://" + cfDomain);
-        }
 
         // 兼容旧 jar 行为：--script= 直接跑指定脚本
         if (opts.containsKey("script")) {
