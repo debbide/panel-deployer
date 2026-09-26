@@ -199,18 +199,28 @@ exec "$TOOR" -r "$ROOTFS_DIR" -0 -w /root $BIND_OPTS --kill-on-exit \
       fi
       tmpd="$(mktemp -d)"
       tar -xf "$tb" -C "$tmpd"
-      rm -rf /opt/ruyipage-firefox
-      if [ -x "$tmpd/ruyipage-firefox/firefox" ]; then
-        mv "$tmpd/ruyipage-firefox" /opt/ruyipage-firefox
-      elif [ -x "$tmpd/firefox/firefox" ]; then
-        mv "$tmpd/firefox" /opt/ruyipage-firefox
+      # 注：tmpd 在 /tmp 下（可能 noexec），这里只检查文件存在性，不检查可执行位；
+      # 可执行位在搬到 /opt 后再确认。
+      srcdir=""
+      if [ -f "$tmpd/ruyipage-firefox/firefox" ]; then
+        srcdir="$tmpd/ruyipage-firefox"
+      elif [ -f "$tmpd/firefox/firefox" ]; then
+        srcdir="$tmpd/firefox"
       else
-        echo "[ERROR] 安装包里找不到 firefox 可执行文件"
+        echo "[ERROR] 安装包里找不到 firefox 文件"
         echo "包内顶层：$(ls "$tmpd" | tr "\n" " ")"
+        echo "firefox/ 内容：$(ls "$tmpd/firefox" 2>/dev/null | tr "\n" " ")"
         rm -rf "$tmpd"
         exit 1
       fi
+      rm -rf /opt/ruyipage-firefox
+      mv "$srcdir" /opt/ruyipage-firefox
       rm -rf "$tmpd"
+      chmod +x /opt/ruyipage-firefox/firefox
+      if [ ! -x /opt/ruyipage-firefox/firefox ]; then
+        echo "[ERROR] /opt/ruyipage-firefox/firefox 无法执行（/opt 可能被挂载为 noexec）"
+        exit 1
+      fi
       echo "✅ Firefox 已安装到 /opt/ruyipage-firefox"
     fi
 
