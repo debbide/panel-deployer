@@ -46,6 +46,19 @@ echo $XVFB_PID > $APP/pids/xvfb.pid
 
 sleep 2
 
+# VNC/noVNC（可选）：把 :1 桌面通过网页暴露出来，方便看浏览器画面。
+# VNC_PASSWORD 为空则整段跳过（vnc-start.sh 内也有兜底）。
+echo "[BP] VNC/noVNC..."
+if [ -n "${VNC_PASSWORD:-}" ]; then
+  if [ -f /root/vnc-start.sh ]; then
+    bash /root/vnc-start.sh || echo "[BP] WARN: vnc-start.sh 异常退出（面板不受影响）"
+  else
+    echo "[BP] WARN: 设置了 VNC_PASSWORD 但 /root/vnc-start.sh 缺失，跳过 VNC"
+  fi
+else
+  echo "[BP] 未设置 VNC_PASSWORD，跳过 VNC/noVNC"
+fi
+
 echo "[BP] starting panel..."
 
 cd $APP

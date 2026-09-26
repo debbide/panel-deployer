@@ -15,10 +15,12 @@ import java.util.concurrent.LinkedBlockingQueue;
  * 流程：
  *   1. 脚本来源：--scripts-dir 外部目录，或释放 jar 内嵌脚本（转 LF + 加执行位）
  *   2. 起 panel 主链：/bin/bash start.sh
- *      （沿用已验证的脚本：proot 安装→面板四件套安装→panel-start.sh→tail -F 挂前台）
- *   3. 起 webterm（ssh 终端）：127.0.0.1:7681，token 走环境变量（不进 ps、不进日志）
- *   4. 起隧道（TUNNEL_MODE）：
- *      - quick（默认）：两条 quick 隧道 → 3210（面板）/ 7681（webterm），各一个随机 https 地址
+ *      （沿用已验证的脚本：proot 安装→面板四件套安装→panel-start.sh→tail -F 挂前台；
+ *       VNC 密码/端口经环境变量透传进 proot）
+ *   3. 起 webterm（ssh 终端）：127.0.0.1:webterm 端口，token 走环境变量（不进 ps、不进日志）
+ *   4. 起 VNC（可选）：proot 内 x11vnc + noVNC，有 VNC 密码才启用
+ *   5. 起隧道（TUNNEL_MODE）：
+ *      - quick（默认）：quick 隧道 → 3210（面板）/ webterm 端口 / VNC 端口，各一个随机 https 地址
  *      - named：一条隧道，token 走 TUNNEL_TOKEN 环境变量（ps 不可见）
  *
  * 监督策略（v1）：
@@ -65,8 +67,17 @@ public class Deployer {
 
         Supervisor sup = new Supervisor();
 
-        // 2. panel 主链
-        sup.spawn("panel", true, List.of("/bin/bash", startSh.toString()), Map.of());
+        // 2. panel 主链（VNC 配置经环境变量透传进 proot）
+        java.util.Map<String, String> panelEnv = new java.util.HashMap<>();
+        panelEnv.put("VNC_PORT", String.valueOf(Secrets.vncPort()));
+        String vncPass = Secrets.vncPassword();
+        if (vncPass != null) {
+            panelEnv.put("VNC_PASSWORD", vncPass);
+            System.out.println("[deployer] VNC/noVNC 已启用（端口 " + Secrets.vncPort() + "）");
+        } else {
+            System.out.println("[deployer] 未配置 VNC 密码，跳过 VNC/noVNC");
+        }
+        sup.spawn("panel", true, List.of("/bin/bash", startSh.toString()), panelEnv);
 
         // 3. webterm
         if (wantWebterm) {
@@ -99,7 +110,7 @@ public class Deployer {
                         Map.of("TUNNEL_TOKEN", token));
                 }
             } else {
-                // quick：两条隧道，各一个随机 https 地址，日志里会打印
+                // quick：quick 隧道，各一个随机 https 地址，日志里会打印
                 sup.spawn("tunnel-panel", false,
                     List.of(cf.toString(), "tunnel", "--no-autoupdate",
                             "--url", "http://127.0.0.1:3210"),
@@ -108,6 +119,12 @@ public class Deployer {
                     sup.spawn("tunnel-webterm", false,
                         List.of(cf.toString(), "tunnel", "--no-autoupdate",
                                 "--url", "http://127.0.0.1:" + Secrets.webtermPort()),
+                        Map.of());
+                }
+                if (Secrets.vncPassword() != null) {
+                    sup.spawn("tunnel-novnc", false,
+                        List.of(cf.toString(), "tunnel", "--no-autoupdate",
+                                "--url", "http://127.0.0.1:" + Secrets.vncPort()),
                         Map.of());
                 }
             }

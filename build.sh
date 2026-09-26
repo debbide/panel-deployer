@@ -7,6 +7,8 @@
 #   CF_DOMAIN         Cloudflare 隧道域名（named 模式，面板地址展示用）
 #   WEBTERM_TOKEN     webterm 访问 token
 #   WEBTERM_PORT      webterm 端口（默认 7681）
+#   VNC_PASSWORD      VNC 密码（为空则不启用 noVNC）
+#   VNC_PORT          noVNC 网页端口（默认 6080）
 # 为空则构建产物里留空（token 运行时走 /home/container/.secrets/ 文件或环境变量兜底）。
 #
 # 用法：
@@ -39,18 +41,22 @@ echo "[build] 内嵌脚本: $(ls "$BUILD_DIR/classes/scripts" | tr '\n' ' ')"
 } > "$BUILD_DIR/res/build-info.properties"
 
 # 3. secrets（只从环境变量注入；反斜杠双写防 Properties 转义吃掉）
-# 4 个变量：CF_TUNNEL_TOKEN / CF_DOMAIN / WEBTERM_TOKEN / WEBTERM_PORT
+# 6 个变量：CF_TUNNEL_TOKEN / CF_DOMAIN / WEBTERM_TOKEN / WEBTERM_PORT / VNC_PASSWORD / VNC_PORT
 esc_bs() { printf '%s' "$1" | sed 's/\\/\\\\/g'; }
 printf '# 构建时注入。本地构建未设环境变量时留空，运行时走外部文件/环境变量兜底。\n' > "$BUILD_DIR/res/secrets.properties"
 printf 'cf.tunnel.token=%s\n' "$(esc_bs "${CF_TUNNEL_TOKEN:-}")" >> "$BUILD_DIR/res/secrets.properties"
 printf 'cf.domain=%s\n' "$(esc_bs "${CF_DOMAIN:-}")" >> "$BUILD_DIR/res/secrets.properties"
 printf 'webterm.token=%s\n' "$(esc_bs "${WEBTERM_TOKEN:-}")" >> "$BUILD_DIR/res/secrets.properties"
 printf 'webterm.port=%s\n' "$(esc_bs "${WEBTERM_PORT:-}")" >> "$BUILD_DIR/res/secrets.properties"
+printf 'vnc.password=%s\n' "$(esc_bs "${VNC_PASSWORD:-}")" >> "$BUILD_DIR/res/secrets.properties"
+printf 'vnc.port=%s\n' "$(esc_bs "${VNC_PORT:-}")" >> "$BUILD_DIR/res/secrets.properties"
 chmod 600 "$BUILD_DIR/res/secrets.properties"
 [ -n "${CF_TUNNEL_TOKEN:-}" ] && echo "[build] 已注入 CF 隧道 token" || echo "[build] CF 隧道 token 为空（运行时兜底）"
 [ -n "${CF_DOMAIN:-}" ] && echo "[build] 已注入 CF 域名" || echo "[build] CF 域名为空"
 [ -n "${WEBTERM_TOKEN:-}" ] && echo "[build] 已注入 webterm token" || echo "[build] webterm token 为空（运行时兜底）"
 [ -n "${WEBTERM_PORT:-}" ] && echo "[build] webterm 端口: ${WEBTERM_PORT}" || echo "[build] webterm 端口默认 7681"
+[ -n "${VNC_PASSWORD:-}" ] && echo "[build] 已注入 VNC 密码" || echo "[build] VNC 密码为空（不启用 noVNC）"
+[ -n "${VNC_PORT:-}" ] && echo "[build] VNC 端口: ${VNC_PORT}" || echo "[build] VNC 端口默认 6080"
 
 # 4. 编译（--release 17，目标机 Java 25 兼容，老环境也尽量能跑）
 mkdir -p "$BUILD_DIR/classes"

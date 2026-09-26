@@ -104,13 +104,25 @@ if [ -f /etc/resolv.conf ]; then
   cp -L /etc/resolv.conf "$ROOTFS_DIR/etc/resolv.conf" 2>/dev/null || true
 fi
 
+# ---------------- 脚本同步：jar 内嵌脚本是唯一可信来源 ----------------
+# 每次开服把 jar 释放出来的脚本同步进 proot 的 /root/，保证里面跑的
+# 永远是 jar 里那一套——不用再手动往文件管理里传脚本，也不会出现
+# proot 里脚本版本和 jar 对不上的情况。
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+for s in panel-start.sh install-web.sh stack.sh bp.sh fix_browser.sh vnc-start.sh; do
+  if [ -f "$SCRIPT_DIR/$s" ]; then
+    cp -f "$SCRIPT_DIR/$s" "$ROOTFS_DIR/root/$s"
+  fi
+done
+
 # 从翼龙文件管理上传的脚本可能带 Windows 换行符(CRLF)，
 # 统一洗掉行尾的 \r（纯 LF 文件不受影响，是空操作）
 for f in "$ROOTFS_DIR/root/panel-start.sh" \
          "$ROOTFS_DIR/root/install-web.sh" \
          "$ROOTFS_DIR/root/stack.sh" \
          "$ROOTFS_DIR/root/bp.sh" \
-         "$ROOTFS_DIR/root/fix_browser.sh"; do
+         "$ROOTFS_DIR/root/fix_browser.sh" \
+         "$ROOTFS_DIR/root/vnc-start.sh"; do
   [ -f "$f" ] && sed -i 's/\r$//' "$f"
 done
 

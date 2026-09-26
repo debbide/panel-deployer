@@ -9,9 +9,10 @@ import java.util.Properties;
  * token 读取。
  *
  * 优先级（明确的本地覆盖构建时默认值）：
- *   1. 环境变量（CF_TUNNEL_TOKEN / CF_DOMAIN / WEBTERM_TOKEN / WEBTERM_PORT）
+ *   1. 环境变量（CF_TUNNEL_TOKEN / CF_DOMAIN / WEBTERM_TOKEN / WEBTERM_PORT /
+ *      VNC_PASSWORD / VNC_PORT）
  *   2. 外部文件：/home/container/.secrets/ 下的 cf_tunnel_token、cf_domain、
- *      webterm_token、webterm_port（建议 600）
+ *      webterm_token、webterm_port、vnc_password、vnc_port（建议 600）
  *   3. 构建时注入：jar 内的 /secrets.properties（GitHub Secrets → Actions 构建）
  *
  * 任何 token 都不会出现在：分享出去的脚本、进程命令行参数（ps）、构建日志。
@@ -48,20 +49,33 @@ public final class Secrets {
 
     /** webterm 端口，默认 7681。 */
     public static int webtermPort() {
-        String v = resolve("WEBTERM_PORT", "webterm_port", "webterm.port");
+        return parsePort(resolve("WEBTERM_PORT", "webterm_port", "webterm.port"), 7681, "webterm 端口");
+    }
+
+    /** VNC 密码。为空 = 不启用 VNC/noVNC。 */
+    public static String vncPassword() {
+        return resolve("VNC_PASSWORD", "vnc_password", "vnc.password");
+    }
+
+    /** noVNC 网页端口，默认 6080。 */
+    public static int vncPort() {
+        return parsePort(resolve("VNC_PORT", "vnc_port", "vnc.port"), 6080, "VNC 端口");
+    }
+
+    private static int parsePort(String v, int def, String label) {
         if (v == null) {
-            return 7681;
+            return def;
         }
         try {
-            int p = Integer.parseInt(v);
+            int p = Integer.parseInt(v.strip());
             if (p >= 1 && p <= 65535) {
                 return p;
             }
         } catch (NumberFormatException ignored) {
             // 落到下面的警告
         }
-        System.err.println("[deployer] 警告: webterm 端口非法 (" + v + ")，用默认 7681");
-        return 7681;
+        System.err.println("[deployer] 警告: " + label + "非法 (" + v + ")，用默认 " + def);
+        return def;
     }
 
     private static String resolve(String envName, String fileName, String bakedKey) {

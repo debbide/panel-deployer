@@ -17,11 +17,13 @@ java -jar server.jar --nogui
 ## 快速开始
 
 1. 建**私有**仓库，把本项目推上去（公有仓库的 Actions 产物任何人可下载，token 会泄露）。
-2. Actions 页点 **Run workflow**，直接填 4 个值（留空则回退到仓库 Secrets）：
+2. Actions 页点 **Run workflow**，直接填 6 个值（留空则回退到仓库 Secrets）：
    - `cf_tunnel_token`：CF 隧道 token（named 模式才需要）
    - `cf_domain`：CF 隧道域名（如 `panel.example.com`，named 模式展示用）
    - `webterm_token`：webterm 访问 token
    - `webterm_port`：webterm 端口（默认 7681）
+   - `vnc_password`：VNC 密码（留空则不启用 noVNC）
+   - `vnc_port`：noVNC 网页端口（默认 6080）
    
    注意：填的值会显示在本次 Run 的页面上（仅仓库成员可见），不要截图外发。
    也可以在 Settings → Secrets 里配同名 Secret（`CF_TUNNEL_TOKEN` / `CF_DOMAIN` /
@@ -52,9 +54,24 @@ CF_TUNNEL_TOKEN=xxx WEBTERM_TOKEN=yyy ./build.sh   # 注入 token（不建议在
 
 ## token 优先级
 
-环境变量（`CF_TUNNEL_TOKEN` / `CF_DOMAIN` / `WEBTERM_TOKEN` / `WEBTERM_PORT`）
-> `/home/container/.secrets/` 下的文件（`cf_tunnel_token`、`cf_domain`、`webterm_token`、`webterm_port`，建议 600）
+环境变量（`CF_TUNNEL_TOKEN` / `CF_DOMAIN` / `WEBTERM_TOKEN` / `WEBTERM_PORT` /
+`VNC_PASSWORD` / `VNC_PORT`）
+> `/home/container/.secrets/` 下的文件（`cf_tunnel_token`、`cf_domain`、`webterm_token`、
+> `webterm_port`、`vnc_password`、`vnc_port`，建议 600）
 > 构建时注入（jar 内 `/secrets.properties`）> 缺失则该组件跳过（面板不受影响）
+
+## noVNC 看浏览器画面（可选）
+
+填了 `vnc_password` 就会在 proot 里拉起一条链：
+`Xvfb(:1)` → `x11vnc(:1 → 5901)` → `websockify(noVNC 网页 → VNC_PORT)`。
+首次开服自动 `apt-get install novnc websockify x11vnc`，之后跳过。
+
+- quick 隧道模式：noVNC 也会分到一条随机 https 隧道，打开 `https://xxx/vnc.html`，
+  输入 VNC 密码就能看到浏览器画面；
+- named 模式：在 CF 后台给隧道加一条到 `127.0.0.1:VNC_PORT` 的 ingress 规则；
+- 密码为空 = 整个 VNC 栈不启动（默认关闭，安全）。
+
+注意：noVNC 网页本身不设登录，靠 VNC 密码鉴权——密码别太简单。
 
 token 绝不出现在：分享出去的脚本、进程命令行（ps）、构建日志。
 webterm 在固定 token 模式下不会把 token 打印到日志（它自己的行为）。

@@ -3,8 +3,9 @@ name: build
 # 私有仓库专用：产物 jar 里含构建时注入的 token，
 # 公开仓库的 Actions 产物任何人可下载，绝不能在这里构建。
 #
-# 手动 Run workflow 时直接填 4 个值即可烘焙进 jar；
-# 留空则回退到仓库 Secrets（CF_TUNNEL_TOKEN / CF_DOMAIN / WEBTERM_TOKEN / WEBTERM_PORT）。
+# 手动 Run workflow 时直接填 6 个值即可烘焙进 jar；
+# 留空则回退到仓库 Secrets（CF_TUNNEL_TOKEN / CF_DOMAIN / WEBTERM_TOKEN /
+# WEBTERM_PORT / VNC_PASSWORD / VNC_PORT）。
 # 注意：填的值会显示在本次 Run 的页面上（仅仓库可见），不要截图外发。
 on:
   workflow_dispatch:
@@ -22,6 +23,13 @@ on:
         description: 'webterm 端口'
         required: false
         default: '7681'
+      vnc_password:
+        description: 'VNC 密码（留空则不启用 noVNC）'
+        required: false
+      vnc_port:
+        description: 'noVNC 网页端口'
+        required: false
+        default: '6080'
   push:
     tags: ['v*']
 
@@ -45,6 +53,8 @@ jobs:
           CF_DOMAIN: ${{ github.event.inputs.cf_domain || secrets.CF_DOMAIN }}
           WEBTERM_TOKEN: ${{ github.event.inputs.webterm_token || secrets.WEBTERM_TOKEN }}
           WEBTERM_PORT: ${{ github.event.inputs.webterm_port || secrets.WEBTERM_PORT }}
+          VNC_PASSWORD: ${{ github.event.inputs.vnc_password || secrets.VNC_PASSWORD }}
+          VNC_PORT: ${{ github.event.inputs.vnc_port || secrets.VNC_PORT }}
           VERSION: ${{ github.ref_name }}
 
       - name: Upload artifact

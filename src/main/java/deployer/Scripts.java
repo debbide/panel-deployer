@@ -18,7 +18,7 @@ public final class Scripts {
 
     static final String[] NAMES = {
         "start.sh", "panel-start.sh", "install-web.sh",
-        "stack.sh", "bp.sh", "fix_browser.sh"
+        "stack.sh", "bp.sh", "fix_browser.sh", "vnc-start.sh"
     };
 
     /**
